@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Judge Live Panel</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f1f5f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 12px; text-align: center; width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        h2 { color: #1e293b; margin-bottom: 5px; }
+        
+        #loginScreen input { width: 90%; padding: 12px; margin: 15px 0; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; text-align: center; }
+        button { width: 100%; padding: 15px; background: #3b82f6; color: white; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        button:hover { background: #2563eb; }
+
+        #scoringDashboard { display: none; }
+        .chest-box { background: #1e293b; color: #deff9a; padding: 15px; border-radius: 10px; margin: 15px 0; }
+        #liveChestDisplay { font-size: 40px; margin: 0; }
+        
+        .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+        .score-input { display: flex; flex-direction: column; text-align: left; }
+        .score-input label { font-size: 14px; color: #64748b; font-weight: bold; }
+        .score-input input { padding: 10px; font-size: 18px; border: 1px solid #cbd5e1; border-radius: 5px; text-align: center; }
+        
+        .total-box { margin-top: 15px; padding: 10px; background: #e2e8f0; border-radius: 5px; font-weight: bold; font-size: 20px; color: #0f172a; }
+        #status { font-weight: bold; display: none; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="card" id="loginScreen">
+    <h2>Judge Login</h2>
+    <p style="color: #64748b;">Enter your Secret Key to continue</p>
+    <input type="text" id="judgeKey" placeholder="Enter Key (e.g., JUDGE1)">
+    <button onclick="verifyKey()">Access Panel</button>
+</div>
+
+<div class="card" id="scoringDashboard">
+    <h2 id="judgeTitle">Judge Panel</h2>
+    
+    <div class="chest-box">
+        <h3 style="margin: 0; color: #94a3b8; font-size: 16px;">Live Performer</h3>
+        <h1 id="liveChestDisplay">Loading...</h1>
+    </div>
+
+    <div class="score-grid">
+        <div class="score-input"><label>Asana 1</label><input type="number" id="asana1" max="10" min="0" step="0.5" oninput="calculateTotal()"></div>
+        <div class="score-input"><label>Asana 2</label><input type="number" id="asana2" max="10" min="0" step="0.5" oninput="calculateTotal()"></div>
+        <div class="score-input"><label>Asana 3</label><input type="number" id="asana3" max="10" min="0" step="0.5" oninput="calculateTotal()"></div>
+        <div class="score-input"><label>Asana 4</label><input type="number" id="asana4" max="10" min="0" step="0.5" oninput="calculateTotal()"></div>
+    </div>
+    
+    <div class="total-box">Total Score: <span id="totalDisplay">0</span></div>
+
+    <button id="submitBtn" onclick="submitScore()">Submit Marks</button>
+    <p id="status"></p>
+</div>
+
+<script>
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbwtPY3Rm_HhedgoEKCCWIEN_dUOjIfGjByIxxPFhZJrW8teaFrMnudXrIHYSu9SFniF/exec';
+    
+    let currentJudgeId = 0;
+    let currentActiveChest = "";
+
+    const validKeys = {
+        "JUDGE1": 1,
+        "JUDGE2": 2,
+        "JUDGE3": 3,
+        "JUDGE4": 4
+    };
+
+    function verifyKey() {
+        const key = document.getElementById('judgeKey').value.toUpperCase().trim();
+        if (validKeys[key]) {
+            currentJudgeId = validKeys[key];
+            document.getElementById('loginScreen').style.display = "none";
+            document.getElementById('scoringDashboard').style.display = "block";
+            document.getElementById('judgeTitle').innerText = "Judge " + currentJudgeId + " Panel";
+        } else {
+            alert("Invalid Key! Please enter a valid Judge Key.");
+        }
+    }
+
+    // ব্যাকএন্ড থেকে POST মেথডের সাহায্যে লাইভ নম্বর চেক করা (CORS ফিক্সড)
+    setInterval(() => {
+        if(currentJudgeId !== 0) { 
+            const formData = new FormData();
+            formData.append('action', 'getChest');
+
+            fetch(scriptURL, { method: 'POST', body: formData })
+                .then(res => res.text())
+                .then(chestNo => {
+                    if(chestNo && chestNo !== "undefined" && !chestNo.includes("Error") && !chestNo.includes("CRASH:")) {
+                        document.getElementById('liveChestDisplay').innerText = chestNo;
+                        currentActiveChest = chestNo;
+                    }
+                })
+                .catch(err => console.log("Waiting for connection..."));
+        }
+    }, 3000);
+
+    function calculateTotal() {
+        const a1 = Number(document.getElementById('asana1').value) || 0;
+        const a2 = Number(document.getElementById('asana2').value) || 0;
+        const a3 = Number(document.getElementById('asana3').value) || 0;
+        const a4 = Number(document.getElementById('asana4').value) || 0;
+        document.getElementById('totalDisplay').innerText = (a1 + a2 + a3 + a4);
+    }
+
+    function submitScore() {
+        if (!currentActiveChest || currentActiveChest === "Please wait...") {
+            alert("Please wait for a valid chest number from the mentor.");
+            return;
+        }
+
+        const a1 = document.getElementById('asana1').value;
+        const a2 = document.getElementById('asana2').value;
+        const a3 = document.getElementById('asana3').value;
+        const a4 = document.getElementById('asana4').value;
+        
+        if (a1 === "" || a2 === "" || a3 === "" || a4 === "") {
+            alert("Please enter marks for all 4 Asanas.");
+            return;
+        }
+
+        const btn = document.getElementById('submitBtn');
+        const statusMsg = document.getElementById('status');
+        btn.innerText = "Submitting...";
+
+        const formData = new FormData();
+        formData.append('action', 'submitScore');
+        formData.append('judgeId', currentJudgeId);
+        formData.append('chestNo', currentActiveChest);
+        formData.append('asana1', a1);
+        formData.append('asana2', a2);
+        formData.append('asana3', a3);
+        formData.append('asana4', a4);
+
+        fetch(scriptURL, { method: 'POST', body: formData })
+            .then(res => res.text()).then(result => {
+                statusMsg.innerText = result;
+                statusMsg.style.display = "block";
+                statusMsg.style.color = "green";
+                btn.innerText = "Submit Marks";
+                
+                document.getElementById('asana1').value = "";
+                document.getElementById('asana2').value = "";
+                document.getElementById('asana3').value = "";
+                document.getElementById('asana4').value = "";
+                document.getElementById('totalDisplay').innerText = "0";
+                
+                setTimeout(() => statusMsg.style.display = "none", 3000);
+            }).catch(err => {
+                alert("Submission failed!");
+                btn.innerText = "Submit Marks";
+            });
+    }
+</script>
+
+</body>
+</html>

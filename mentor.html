@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mentor - Lock & Send</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #0f172a; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .card { background: #1e293b; padding: 40px; border-radius: 12px; text-align: center; width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        h2 { margin-bottom: 5px; color: #f8fafc; }
+        
+        input { width: 90%; padding: 15px; margin: 20px 0; border: 2px solid #475569; border-radius: 8px; font-size: 24px; text-align: center; font-weight: bold; }
+        button { width: 100%; padding: 15px; background: #3b82f6; color: white; font-size: 16px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-bottom: 10px; }
+        button:hover { opacity: 0.9; }
+        
+        .btn-success { background: #22c55e; }
+        .btn-secondary { background: #64748b; }
+        .btn-warning { background: #eab308; }
+
+        .step-screen { display: none; }
+        .active-step { display: block; }
+        
+        #fetchedName { font-size: 24px; color: #fbbf24; font-weight: bold; margin: 15px 0; }
+        
+        .live-badge { background: #ef4444; padding: 5px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; letter-spacing: 1px; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+
+<div class="card step-screen active-step" id="loginScreen">
+    <h2>Mentor Login</h2>
+    <input type="password" id="mentorPass" placeholder="Enter Password" style="font-size: 16px;">
+    <button class="btn-success" onclick="verifyKey()">Login</button>
+</div>
+
+<div class="card step-screen" id="searchScreen">
+    <h2>Enter Participant</h2>
+    <p style="color: #94a3b8; font-size: 14px;">Type Chest No. to search database</p>
+    <input type="number" id="chestInput" placeholder="e.g. 101">
+    <button onclick="searchParticipant()" id="searchBtn">Find Participant</button>
+</div>
+
+<div class="card step-screen" id="confirmScreen">
+    <h2>Confirm Participant</h2>
+    <h1 style="color: white; margin: 10px 0;" id="confirmChest">--</h1>
+    <div id="fetchedName">Loading...</div>
+    
+    <button class="btn-success" onclick="lockAndSend()" id="sendBtn">Lock & Send to Judges</button>
+    <button class="btn-secondary" onclick="goBack()">Wait, Change Number</button>
+</div>
+
+<div class="card step-screen" id="lockedScreen">
+    <span class="live-badge">LIVE LOCKED</span>
+    <h1 id="lockedChest" style="font-size: 60px; margin: 10px 0; color: #deff9a;">--</h1>
+    <h2 id="lockedName" style="color: #fbbf24; margin-top: 0;">--</h2>
+    <p style="color: #94a3b8; font-size: 14px;">Judges are now scoring this participant.</p>
+    
+    <button class="btn-warning" onclick="unlock()" style="margin-top: 30px;">Edit / Send Next Participant</button>
+</div>
+
+<script>
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbwtPY3Rm_HhedgoEKCCWIEN_dUOjIfGjByIxxPFhZJrW8teaFrMnudXrIHYSu9SFniF/exec';
+
+    function showScreen(screenId) {
+        document.querySelectorAll('.step-screen').forEach(el => el.classList.remove('active-step'));
+        document.getElementById(screenId).classList.add('active-step');
+    }
+
+    function verifyKey() {
+        if (document.getElementById('mentorPass').value === '123') {
+            showScreen('searchScreen');
+        } else {
+            alert('Incorrect Password!');
+        }
+    }
+
+    function searchParticipant() {
+        const chestNo = document.getElementById('chestInput').value;
+        if (!chestNo) { alert("Please enter a chest number!"); return; }
+
+        const btn = document.getElementById('searchBtn');
+        btn.innerText = "Searching...";
+
+        const formData = new FormData();
+        formData.append('action', 'getName');
+        formData.append('chestNo', chestNo);
+
+        fetch(scriptURL, { method: 'POST', body: formData })
+            .then(res => res.text())
+            .then(name => {
+                btn.innerText = "Find Participant";
+                document.getElementById('confirmChest').innerText = "Chest: " + chestNo;
+                
+                if (name.includes("Name Not Found!") || name.includes("CRASH:") || name.includes("Error")) {
+                    document.getElementById('fetchedName').style.color = "#ef4444";
+                    document.getElementById('fetchedName').innerText = "❌ Participant Not Found!";
+                    document.getElementById('sendBtn').style.display = "none";
+                } else {
+                    document.getElementById('fetchedName').style.color = "#fbbf24";
+                    document.getElementById('fetchedName').innerText = "👤 " + name;
+                    document.getElementById('sendBtn').style.display = "block";
+                }
+                showScreen('confirmScreen');
+            }).catch(err => {
+                alert("Network Error!");
+                btn.innerText = "Find Participant";
+            });
+    }
+
+    function goBack() { showScreen('searchScreen'); }
+
+    function lockAndSend() {
+        const chestNo = document.getElementById('chestInput').value;
+        const name = document.getElementById('fetchedName').innerText;
+        const btn = document.getElementById('sendBtn');
+        btn.innerText = "Sending & Locking...";
+
+        const formData = new FormData();
+        formData.append('action', 'setChest');
+        formData.append('chestNo', chestNo);
+
+        fetch(scriptURL, { method: 'POST', body: formData })
+            .then(res => res.text()).then(result => {
+                btn.innerText = "Lock & Send to Judges";
+                document.getElementById('lockedChest').innerText = chestNo;
+                document.getElementById('lockedName').innerText = name;
+                showScreen('lockedScreen');
+            }).catch(err => alert("Failed to send data!"));
+    }
+
+    function unlock() {
+        document.getElementById('chestInput').value = "";
+        showScreen('searchScreen');
+    }
+</script>
+
+</body>
+</html>

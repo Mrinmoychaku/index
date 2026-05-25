@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Panel</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 40px; background-color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { width: 100%; max-width: 500px; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h2 { color: #1e293b; text-align: center; }
+        .upload-box { margin-top: 20px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #f1f5f9; }
+        button { width: 100%; padding: 12px; background-color: #3b82f6; color: white; border: none; cursor: pointer; border-radius: 5px; font-size: 16px; font-weight: bold; margin-top: 15px;}
+        button:hover { background-color: #2563eb; }
+        #status { font-weight: bold; text-align: center; display: none; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Admin Dashboard</h2>
+    <div class="upload-box">
+        <h3>1. Upload Excel/CSV Data</h3>
+        <input type="file" id="excelFile" accept=".xlsx, .xls, .csv">
+        <button onclick="uploadExcel()">Upload Data</button>
+        <p id="status"></p>
+    </div>
+</div>
+
+<script>
+    // আপনার Web App URL 
+    const scriptURL = 'https://script.google.com/macros/s/AKfycbwtPY3Rm_HhedgoEKCCWIEN_dUOjIfGjByIxxPFhZJrW8teaFrMnudXrIHYSu9SFniF/exec';
+
+    function uploadExcel() {
+        const file = document.getElementById('excelFile').files[0];
+        const statusMsg = document.getElementById('status');
+        
+        if (!file) { alert("Please select a file first!"); return; }
+        
+        statusMsg.style.display = "block";
+        statusMsg.innerText = "Uploading data... Please wait.";
+        statusMsg.style.color = "blue";
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const workbook = XLSX.read(new Uint8Array(e.target.result), {type: 'array'});
+            let excelData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header: 1});
+            
+            // --- সুপার ডেটা ক্লিনার: কোনো null বা undefined যাবে না ---
+            let maxCols = Math.max(...excelData.map(row => row.length));
+            let cleanedData = [];
+            
+            for(let i = 0; i < excelData.length; i++) {
+                let row = excelData[i];
+                let cleanRow = [];
+                for(let j = 0; j < maxCols; j++) {
+                    let cellValue = row[j];
+                    if (cellValue === null || cellValue === undefined) {
+                        cleanRow.push(""); // null পেলে ফাঁকা করে দেবে
+                    } else {
+                        cleanRow.push(String(cellValue)); // সবকিছুকে টেক্সট বানিয়ে দেবে
+                    }
+                }
+                cleanedData.push(cleanRow);
+            }
+            // ---------------------------------------------------------
+
+            const formData = new FormData();
+            formData.append('action', 'uploadExcel');
+            formData.append('data', JSON.stringify(cleanedData));
+
+            fetch(scriptURL, { method: 'POST', body: formData })
+                .then(res => res.text()).then(result => {
+                    statusMsg.innerText = result;
+                    statusMsg.style.color = "green";
+                    document.getElementById('excelFile').value = ''; 
+                }).catch(err => {
+                    statusMsg.innerText = "Upload failed! Make sure your Apps Script is deployed as 'New version'.";
+                    statusMsg.style.color = "red";
+                    console.error("Fetch Error: ", err);
+                });
+        };
+        reader.readAsArrayBuffer(file);
+    }
+</script>
+
+</body>
+</html>
